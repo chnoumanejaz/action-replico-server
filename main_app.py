@@ -1,7 +1,5 @@
-
-import numpy as np
 import math as math
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
