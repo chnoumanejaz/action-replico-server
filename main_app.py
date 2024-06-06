@@ -81,8 +81,8 @@ def home():
 def get_data():
     data =   [
             {
-                'name': 'John Doe',
-                'email': 'johndoe@example.com',
+                'name': 'Nouman Ejaz',
+                'email': 'chnoumanejaz@gmail.com',
             }
         ];
     return jsonify(data)
