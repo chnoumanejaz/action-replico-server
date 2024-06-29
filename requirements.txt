@@ -4,3 +4,4 @@ numpy==1.26.4
 flask_cors==4.0.0
 mediapipe==0.10.14
 opencv-python==4.9.0.80
+tensorflow==2.15.1

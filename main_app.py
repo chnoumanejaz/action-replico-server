@@ -2,16 +2,101 @@ import math as math
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import cv2
+import numpy as np
 import mediapipe as mp
 import pandas as pd
 import os
-
+import tensorflow as tf
+from werkzeug.utils import secure_filename
+ 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 CORS(app)
-
-
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+LRCN_model = tf.keras.models.load_model('./model13.h5')
+
+# Constants
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov'}
+SEQUENCE_LENGTH = 20
+IMAGE_HEIGHT = 64   
+IMAGE_WIDTH = 64   
+# CLASSES_LIST = [
+#     "BaseballPitch",
+#     "Basketball",
+#     "BenchPress",
+#     "Biking",
+#     "Billiards",
+#     "BreastStroke",
+#     "CleanAndJerk",
+#     "Diving",
+#     "Drumming",
+#     "Fencing",
+#     "GolfSwing",
+#     "HighJump",
+#     "HorseRace",
+#     "HorseRiding",
+#     "HulaHoop",
+#     "JavelinThrow",
+#     "JugglingBalls",
+#     "JumpingJack",
+#     "JumpRope",
+#     "Kayaking",
+#     "Lunges",
+#     "MilitaryParade",
+#     "Mixing",
+#     "Nunchucks",
+#     "PizzaTossing",
+#     "PlayingGuitar",
+#     "PlayingPiano",
+#     "PlayingTabla",
+#     "PlayingViolin",
+#     "PoleVault",
+#     "PommelHorse",
+#     "PullUps",
+#     "Punch",
+#     "PushUps",
+#     "RockClimbingIndoor",
+#     "RopeClimbing",
+#     "Rowing",
+#     "SalsaSpin",
+#     "SkateBoarding",
+#     "Skiing",
+#     "Skijet",
+#     "SoccerJuggling",
+#     "Swing",
+#     "TaiChi",
+#     "TennisSwing",
+#     "ThrowDiscus",
+#     "TrampolineJumping",
+#     "VolleyballSpiking",
+#     "WalkingWithDog",
+#     "YoYo"
+# ]
+
+
+CLASSES_LIST = [
+    "Basketball",
+    "BenchPress",
+    "Fencing",
+    "GolfSwing",
+    "HighJump",
+    "PlayingTabla",
+    "PullUps",
+    "Punch",
+    "PushUps",
+    "SalsaSpin",
+    "SkateBoarding",
+    "Swing",
+    "TaiChi",
+]
+
+# CLASSES_LIST = ["WalkingWithDog", "TaiChi", "Swing", "HorseRace"]
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def detect_poses(video_path):
@@ -71,6 +156,56 @@ def detect_poses(video_path):
     return output_file_path
 
 
+def predict_single_action(video_file_path, SEQUENCE_LENGTH):
+    video_reader = cv2.VideoCapture(video_file_path)
+
+    original_video_width = int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_video_height = int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Declare a list to store video frames we will extract.
+    frames_list = []
+
+    # Get the number of frames in the video.
+    video_frames_count = int(video_reader.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Calculate the interval after which frames will be added to the list.
+    skip_frames_window = max(int(video_frames_count/SEQUENCE_LENGTH), 1)
+
+    # Iterating the number of times equal to the fixed length of sequence.
+    for frame_counter in range(SEQUENCE_LENGTH):
+        # Set the current frame position of the video.
+        video_reader.set(cv2.CAP_PROP_POS_FRAMES, frame_counter * skip_frames_window)
+
+        # Read a frame.
+        success, frame = video_reader.read()
+
+        # Check if frame is not read properly then break the loop.
+        if not success:
+            break
+
+        # Resize the Frame to fixed Dimensions.
+        resized_frame = cv2.resize(frame, (IMAGE_HEIGHT, IMAGE_WIDTH))
+
+        # Normalize the resized frame by dividing it with 255 so that each pixel value then lies between 0 and 1.
+        normalized_frame = resized_frame / 255.0
+
+        # Appending the pre-processed frame into the frames list
+        frames_list.append(normalized_frame)
+
+    # Release the VideoCapture object.
+    video_reader.release()
+
+    # Passing the pre-processed frames to the model and get the predicted probabilities.
+    predicted_labels_probabilities = LRCN_model.predict(np.expand_dims(frames_list, axis=0))[0]
+
+    # Get the index of class with highest probability.
+    predicted_label = np.argmax(predicted_labels_probabilities)
+
+    # Get the class name using the retrieved index.
+    predicted_class_name = CLASSES_LIST[predicted_label]
+
+    # Return the predicted action and confidence.
+    return predicted_class_name, float(predicted_labels_probabilities[predicted_label])
 
 
 @app.route('/')
@@ -118,6 +253,33 @@ def animate_route():
         # Clean up uploaded file
         if os.path.exists(video_path):
             os.remove(video_path)
+
+
+@app.route('/api/v1/classify', methods=['POST'])
+def classify_video():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        predicted_class_name, confidence = predict_single_action(file_path, SEQUENCE_LENGTH)
+        
+        response = {
+            "video_path": file_path,
+            "predicted_action": predicted_class_name,
+            "confidence": confidence,
+            "statuscode": 200,
+            "message": "Prediction successful"
+        }
+        return jsonify(response)
 
 @app.route('/api/v1/ping', methods=['GET'])
 def pingServer():    
