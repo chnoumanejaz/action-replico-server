@@ -161,37 +161,21 @@ def predict_single_action(video_file_path, SEQUENCE_LENGTH):
 
     original_video_width = int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH))
     original_video_height = int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    # Declare a list to store video frames we will extract.
-    frames_list = []
-
-    # Get the number of frames in the video.
-    video_frames_count = int(video_reader.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # Calculate the interval after which frames will be added to the list.
-    skip_frames_window = max(int(video_frames_count/SEQUENCE_LENGTH), 1)
-
-    # Iterating the number of times equal to the fixed length of sequence.
+    
+    frames_list = []    
+    video_frames_count = int(video_reader.get(cv2.CAP_PROP_FRAME_COUNT))    
+    skip_frames_window = max(int(video_frames_count/SEQUENCE_LENGTH), 1)    
     for frame_counter in range(SEQUENCE_LENGTH):
-        # Set the current frame position of the video.
         video_reader.set(cv2.CAP_PROP_POS_FRAMES, frame_counter * skip_frames_window)
-
-        # Read a frame.
         success, frame = video_reader.read()
-
-        # Check if frame is not read properly then break the loop.
+        
         if not success:
             break
 
-        # Resize the Frame to fixed Dimensions.
         resized_frame = cv2.resize(frame, (IMAGE_HEIGHT, IMAGE_WIDTH))
-
-        # Normalize the resized frame by dividing it with 255 so that each pixel value then lies between 0 and 1.
         normalized_frame = resized_frame / 255.0
 
-        # Appending the pre-processed frame into the frames list
         frames_list.append(normalized_frame)
-
     # Release the VideoCapture object.
     video_reader.release()
 
@@ -212,15 +196,6 @@ def predict_single_action(video_file_path, SEQUENCE_LENGTH):
 def home():
     return render_template('index.html')
 
-@app.route('/api/v1/users', methods=['GET'])
-def get_data():
-    data =   [
-            {
-                'name': 'Nouman Ejaz',
-                'email': 'chnoumanejaz@gmail.com',
-            }
-        ];
-    return jsonify(data)
   
 @app.route('/api/v1/animate',  methods=['POST'])
 def animate_route():
